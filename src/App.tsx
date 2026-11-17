@@ -1,122 +1,160 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect, useReducer, useState } from "react";
+import "./App.css";
+import { BuildSummary } from "./components/BuildSummary/BuildSummary";
+import { PartCard } from "./components/PartCard/PartCard";
+import {
+  type PCState,
+  pcReducer,
+  initialState,
+} from "./types/types";
+import { PARTS_DATA } from "./data/parts";
 
-function App() {
-  const [count, setCount] = useState(0)
+const STORAGE_KEY = "pc-configurator-build";
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+function loadInitialState(defaultState: PCState): PCState {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : defaultState;
+  } catch {
+    return defaultState;
+  }
 }
 
-export default App
+function App() {
+  const [state, dispatch] = useReducer(pcReducer, initialState, loadInitialState);
+
+  // Локальные состояния (Пункт 2.Б)
+  const [activeTab, setActiveTab] = useState<keyof PCState>("cpu");
+  const [onlyInStock, setOnlyInStock] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  // Автосохранение и уведомление на 2 секунды (Пункт 2.В)
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+    setShowSavedToast(true);
+    const timerId = setTimeout(() => {
+      setShowSavedToast(false);
+    }, 2000);
+
+    return () => clearTimeout(timerId);
+  }, [state]);
+
+  // Фильтрация деталей для активной вкладки
+  const filteredParts = PARTS_DATA.filter(
+    (part) => part.category === activeTab && (!onlyInStock || part.inStock)
+  );
+
+  // Подсчет энергопотребления и стоимости
+  const totalWatts =
+    (state.cpu?.watts || 0) +
+    (state.gpu?.watts || 0) +
+    (state.ram?.watts || 0);
+
+  const totalPrice =
+    (state.cpu?.price || 0) +
+    (state.gpu?.price || 0) +
+    (state.ram?.price || 0) +
+    (state.psu?.price || 0);
+
+  // Проверка предупреждений
+  const warnings: string[] = [];
+  if (!state.cpu) {
+    warnings.push("Не выбран процессор");
+  }
+  if (!state.psu) {
+    warnings.push("Не выбран блок питания");
+  } else if (state.psu.maxWatts !== undefined && totalWatts > state.psu.maxWatts) {
+    warnings.push("Внимание: мощность БП меньше потребления системы!");
+  }
+
+  return (
+    <div className="app">
+      <div className="app-container">
+        <header className="app-header">
+          <div className="app-heading">
+            <h1>Конфигуратор ПК</h1>
+            <p>
+              Выберите комплектующие для расчета мощности и стоимости
+            </p>
+          </div>
+
+          <div className="header-actions">
+            {showSavedToast && (
+              <span className="saved-toast">
+                Конфигурация сохранена...
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => dispatch({ type: "RESET_BUILD" })}
+              className="reset-button"
+            >
+              Сбросить сборку
+            </button>
+          </div>
+        </header>
+
+        <div className="build-layout">
+          <div className="parts-column">
+            {/* Панель вкладок и фильтр */}
+            <div className="parts-toolbar">
+              <div className="part-tabs">
+                {(["cpu", "gpu", "ram", "psu"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    className={`part-tab${activeTab === tab ? " active" : ""}`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              <label className="stock-filter">
+                <input
+                  type="checkbox"
+                  checked={onlyInStock}
+                  onChange={(e) => setOnlyInStock(e.target.checked)}
+                />
+                Только в наличии
+              </label>
+            </div>
+
+            {/* Сетка карточек выбранной категории */}
+            <section>
+              <div className="parts-grid">
+                {filteredParts.map((part) => (
+                  <PartCard
+                    key={part.id}
+                    part={part}
+                    isSelected={state[part.category]?.id === part.id}
+                    onSelect={(selected) =>
+                      dispatch({ type: "SELECT_PART", payload: selected })
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
+
+          {/* Боковая панель со сводкой */}
+          <div>
+            <BuildSummary
+              selectedParts={state}
+              totalWatts={totalWatts}
+              totalPrice={totalPrice}
+              warnings={warnings}
+              onRemove={(category) =>
+                dispatch({ type: "REMOVE_PART", payload: category })
+              }
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;

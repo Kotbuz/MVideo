@@ -1,4 +1,6 @@
-export const Part = [
+import type { Part } from "../types/types";
+
+export const PARTS_DATA: Part[] = [
   // Процессоры
   { id: 'cpu-1', category: 'cpu', name: 'AMD Ryzen 5 7500F', price: 16500, watts: 65, socket: 'AM5', inStock: true },
   { id: 'cpu-2', category: 'cpu', name: 'Intel Core i5-13600KF', price: 28000, watts: 125, socket: 'LGA1700', inStock: true },

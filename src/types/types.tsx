@@ -1,7 +1,7 @@
 
 export type PartCategory = 'cpu' | 'gpu' | 'ram' | 'psu';
 export type Part = {
-    id: number;
+    id: string;
     name: string;
     price: number;
     category: PartCategory;
@@ -15,7 +15,7 @@ export type PCState = {
     cpu: Part | null;
     gpu: Part | null;
     ram: Part | null;
-    pcu: Part | null;
+    psu: Part | null;
 }
 
 export type PCAction =
@@ -27,7 +27,7 @@ export const initialState: PCState = {
     cpu: null,
     gpu: null,
     ram: null,
-    pcu: null
+    psu: null
 };
 
 
